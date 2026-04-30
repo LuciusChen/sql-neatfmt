@@ -57,10 +57,17 @@ Build release artifacts:
 uv build --no-sources
 ```
 
-Publish to PyPI after setting a token:
+Publish to PyPI from GitHub Actions:
+
+1. Create a PyPI pending trusted publisher for `sql-neatfmt`.
+2. Use owner `LuciusChen`, repository `sql-neatfmt`, workflow
+   `publish.yml`, and environment `pypi`.
+3. Run the `Publish` workflow from GitHub Actions, or publish a GitHub release.
+
+Publish from this checkout after setting a PyPI token:
 
 ```sh
-uv publish
+uv publish --check-url https://pypi.org/simple/
 ```
 
 Supported initial dialect names follow SQLGlot: `mysql`, `postgres`, `oracle`,
