@@ -1,0 +1,1 @@
+insert into order_audit (id, code, customer_id, oil_site_id, goods_id, create_time, update_time, remark) values (1, 'P001', 1001, 12, 9, sysdate, sysdate, 'very long remark for checking insert values wrapping');

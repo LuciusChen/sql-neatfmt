@@ -1,0 +1,1 @@
+with recent_order as (select id, code, customer_id from order_payoil where create_time >= date '2026-04-01' and deleted = 0) select ro.code, c.customer_name from recent_order ro left join customer c on c.customer_id = ro.customer_id where c.customer_name is not null order by ro.id desc;

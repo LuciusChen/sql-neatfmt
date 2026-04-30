@@ -1,0 +1,1 @@
+select fop.payoil_code, cc.customer_name, fg.goods_name from ffp_order_payoil fop inner join cap_customer cc on cc.customer_id = fop.customer_id left join ffp_goods fg on fg.goods_id = fop.goods_id and fg.deleted = 0 where fop.deleted = 0;

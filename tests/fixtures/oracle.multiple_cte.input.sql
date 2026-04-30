@@ -1,0 +1,1 @@
+with active_customers as (select customer_id, customer_name from customer where disabled = 0), recent_orders as (select id, code, customer_id from order_payoil where create_time >= date '2026-04-01') select ro.code, ac.customer_name from recent_orders ro left join active_customers ac on ac.customer_id = ro.customer_id where ac.customer_name is not null;

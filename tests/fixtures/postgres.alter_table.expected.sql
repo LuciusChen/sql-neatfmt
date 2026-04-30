@@ -1,0 +1,3 @@
+ALTER TABLE order_payoil
+  ADD COLUMN audit_code VARCHAR(64),
+  ALTER COLUMN deleted SET DEFAULT FALSE;

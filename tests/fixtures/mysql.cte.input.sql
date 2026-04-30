@@ -1,0 +1,2 @@
+with recent_order as (select payoil_id, payoil_code, customer_id from ffp_order_payoil where create_time >= '2026-04-01' and deleted = 0) select ro.payoil_code, cc.customer_name from recent_order ro left join cap_customer cc on cc.customer_id = ro.customer_id where cc.customer_name is not null order by ro.payoil_id desc;
+

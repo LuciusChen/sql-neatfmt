@@ -1,0 +1,1 @@
+select op.code, c.customer_name, g.goods_name from order_payoil op inner join customer c on c.customer_id = op.customer_id left join goods g on g.goods_id = op.goods_id and g.deleted = 0 where op.deleted = 0;

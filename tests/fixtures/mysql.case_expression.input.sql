@@ -1,0 +1,1 @@
+select payoil_code, case when deleted = 1 then 'deleted' when oil_site_id is null then 'missing' else 'active' end status_name from ffp_order_payoil where payoil_code like 'P%' and customer_id in (1001, 1002);

@@ -1,0 +1,1 @@
+select c.customer_name, (select count(*) from order_payoil op where op.customer_id = c.customer_id and op.deleted = false) order_count from customer c where exists (select 1 from order_payoil op2 where op2.customer_id = c.customer_id and op2.deleted = false);
