@@ -26,10 +26,15 @@ sql-neatfmt --dialect mysql < query.sql
 sql-neatfmt --dialect postgres query.sql
 sql-neatfmt --dialect oracle --fix query.sql
 sql-neatfmt --dialect mysql --keyword-case lower query.sql
+sql-neatfmt --dialect mysql --check query.sql
+sql-neatfmt --dialect mysql --diff query.sql
 ```
 
 Keywords are uppercased by default. Use `--keyword-case lower` or
 `--no-uppercase-keywords` to emit lowercase keywords instead.
+
+Use `--check` in CI or editor hooks to fail when SQL would be reformatted.
+Use `--diff` to print a unified diff without modifying files.
 
 ## Installation
 

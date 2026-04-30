@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-04-30
+
+- Add project-level agent guidelines in `AGENTS.md`.
+- Add `--check` and `--diff` CLI modes for CI and review workflows.
+- Add idempotence coverage for formatter fixtures.
+
 ## 0.1.0 - 2026-04-30
 
 - Initial formatter CLI.

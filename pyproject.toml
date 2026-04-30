@@ -1,6 +1,6 @@
 [project]
 name = "sql-neatfmt"
-version = "0.1.0"
+version = "0.1.1"
 description = "A compact SQL formatter with dialect-aware parsing."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,6 +49,7 @@ include = [
   "/src",
   "/tests",
   "/README.md",
+  "/AGENTS.md",
   "/LICENSE",
   "/CHANGELOG.md",
   "/pyproject.toml",
