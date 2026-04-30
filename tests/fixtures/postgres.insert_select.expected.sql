@@ -5,5 +5,4 @@ SELECT id,
 FROM order_payoil
 WHERE create_time >= CAST('2026-04-01' AS DATE)
   AND deleted = FALSE
-RETURNING id,
-          code;
+RETURNING id, code;

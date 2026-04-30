@@ -1,0 +1,1 @@
+select c.id, c.customer_name, j.item_code, j.qty from customers c left join lateral jsonb_to_recordset(cast('[{"item_code":"A001","qty":2},{"item_code":"B002","qty":5}]' as jsonb)) as j(item_code text, qty int) on true where c.status = 'ACTIVE' and j.qty > 0 order by c.id, j.item_code;

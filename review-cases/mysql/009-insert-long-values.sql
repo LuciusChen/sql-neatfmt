@@ -1,0 +1,1 @@
+insert into ffp_order_payoil (payoil_code, customer_id, ship_id, goods_id, oil_site_id, oil_num, oil_vice_num, create_time, update_time, deleted) values ('P001', 1001, 2001, 3001, 4001, 123.45, 678.90, now(), now(), 0);

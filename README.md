@@ -36,6 +36,28 @@ Keywords are uppercased by default. Use `--keyword-case lower` or
 Use `--check` in CI or editor hooks to fail when SQL would be reformatted.
 Use `--diff` to print a unified diff without modifying files.
 
+## Review Corpus
+
+Broader style samples live under `review-cases/{dialect}/`. These are intended
+for human review before a style rule is promoted into `tests/fixtures/`.
+
+Render the current formatter output locally:
+
+```sh
+uv run python scripts/render_review.py review-cases/mysql review-output/mysql
+uv run python scripts/render_review.py review-cases/postgres review-output/postgres
+uv run python scripts/render_review.py review-cases/oracle review-output/oracle
+```
+
+`review-output/` is ignored by Git. After a rendered case has been reviewed and
+accepted, promote it to a regression fixture:
+
+```sh
+uv run python scripts/accept_case.py oracle pivot_subquery \
+  review-cases/oracle/015-pivot.sql \
+  review-output/oracle/015-pivot.sql
+```
+
 ## Installation
 
 Install from a local checkout:

@@ -1,0 +1,1 @@
+select customer_id, case when oil_num > 100 then 'large' when oil_num > 0 then 'small' else 'none' end as oil_level, row_number() over (partition by customer_id order by create_time desc) as rn from ffp_order_payoil where deleted = 0;

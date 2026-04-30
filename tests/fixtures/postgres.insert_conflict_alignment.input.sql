@@ -1,0 +1,1 @@
+insert into customer_account (customer_id, balance, updated_at) values ($1, $2, now()) on conflict (customer_id) do update set balance = excluded.balance, updated_at = now() returning customer_id, balance;

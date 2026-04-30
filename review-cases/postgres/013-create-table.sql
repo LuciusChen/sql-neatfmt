@@ -1,0 +1,1 @@
+create table payment_event (id bigserial primary key, order_id bigint not null references orders(id), event_type text not null, event_payload jsonb not null default '{}'::jsonb, created_at timestamptz not null default now());

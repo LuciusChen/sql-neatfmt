@@ -1,0 +1,1 @@
+select o.order_id, jt.item_code, jt.qty from ffp_order_consign o join json_table(o.payload, '$.items[*]' columns (item_code varchar(50) path '$.code', qty decimal(10,2) path '$.qty')) jt on true where o.create_time >= '2026-04-01' and jt.qty > 0 order by o.order_id, jt.item_code;

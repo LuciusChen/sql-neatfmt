@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 - 2026-04-30
+
+- Add review-corpus tooling for human approval of formatter style changes.
+- Improve long subquery wrapping in Oracle `SET`, `EXISTS`, derived-table
+  joins, and `PIVOT` queries.
+- Improve DataGrip-like alignment for Oracle `MERGE`, projection aliases,
+  PostgreSQL `RETURNING`, and `ON CONFLICT DO UPDATE SET`.
+- Add broader MySQL, PostgreSQL, and Oracle review cases.
+
 ## 0.1.1 - 2026-04-30
 
 - Add project-level agent guidelines in `AGENTS.md`.

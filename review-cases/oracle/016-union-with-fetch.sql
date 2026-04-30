@@ -1,0 +1,1 @@
+select customer_id, customer_name, created_at from customer where status = 'ACTIVE' union all select customer_id, customer_name, created_at from customer_archive where status = 'ACTIVE' order by created_at desc fetch first 20 rows only;

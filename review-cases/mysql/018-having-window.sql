@@ -1,0 +1,1 @@
+select customer_id, count(*) order_count, sum(amount) total_amount, row_number() over (order by sum(amount) desc) amount_rank from ffp_order_payoil where create_time >= '2026-04-01' and deleted = 0 group by customer_id having sum(amount) > 0 order by amount_rank;

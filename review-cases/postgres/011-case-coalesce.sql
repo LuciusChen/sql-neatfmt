@@ -1,0 +1,1 @@
+select id, code, case when amount > 100 then 'large' when amount > 0 then 'small' else 'zero' end amount_bucket, coalesce(payload ->> 'source', 'unknown') source_name from orders where coalesce(payload ->> 'source', '') <> '' order by id;

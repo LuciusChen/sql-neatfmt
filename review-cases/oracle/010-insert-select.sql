@@ -1,0 +1,1 @@
+insert into order_audit (order_id, code, customer_id, amount, created_at) select op.id, op.code, op.customer_id, op.amount, sysdate from order_payoil op left join customer c on c.customer_id = op.customer_id where op.created_at >= date '2026-04-01' and c.status = 'ACTIVE';

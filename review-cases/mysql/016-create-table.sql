@@ -1,0 +1,1 @@
+create table ffp_order_event (event_id bigint primary key auto_increment, order_id bigint not null, event_type varchar(50) not null, event_payload json null, create_time datetime not null default current_timestamp, update_time datetime null, key idx_order_event_order_time (order_id, create_time));

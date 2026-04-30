@@ -1,0 +1,1 @@
+select customer_id, count(*) filter (where status = 'paid') paid_count, sum(amount) total_amount from orders where created_at >= date '2026-04-01' group by customer_id having sum(amount) > 0 order by total_amount desc;

@@ -1,0 +1,1 @@
+insert into ffp_order_payoil (payoil_code, customer_id, oil_num, update_time) values ('P001', 1001, 10.50, now()) on duplicate key update customer_id = values(customer_id), oil_num = values(oil_num), update_time = now();

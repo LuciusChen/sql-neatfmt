@@ -1,0 +1,1 @@
+update orders o set status = case when o.amount > 0 then 'paid' else 'pending' end, updated_at = now() from customers c where c.id = o.customer_id and c.status = 'ACTIVE' and o.created_at >= date '2026-04-01' returning o.id, o.code, o.status;

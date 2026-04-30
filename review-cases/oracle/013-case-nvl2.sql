@@ -1,0 +1,1 @@
+select customer_id, case when amount > 100 then 'LARGE' when amount > 0 then 'SMALL' else 'ZERO' end amount_bucket, nvl2(reviewed_at, 'REVIEWED', 'PENDING') review_status from order_payoil where deleted = 0 and created_at >= date '2026-04-01' order by customer_id;

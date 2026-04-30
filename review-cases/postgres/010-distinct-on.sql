@@ -1,0 +1,1 @@
+select distinct on (customer_id) customer_id, code, amount, status, created_at from orders where created_at >= date '2026-04-01' and status in ('paid', 'pending') order by customer_id, created_at desc, id desc;

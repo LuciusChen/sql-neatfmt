@@ -1,0 +1,1 @@
+select customer_id, customer_name, create_time from cap_customer where status = 1 union all select customer_id, customer_name, create_time from cap_customer_archive where status = 1 order by create_time desc limit 20 offset 10;

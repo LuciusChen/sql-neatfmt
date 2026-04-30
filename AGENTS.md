@@ -34,9 +34,30 @@ case is unsafe to transform, return the original SQL unchanged.
 - Preserve string literals and quoted identifiers.
 - Preserve trailing semicolon behavior.
 - Prefer compact readable SQL over blocky output.
+- Keep short derived tables, scalar subqueries, and `EXISTS` predicates inline;
+  wrap them only when the full containing line exceeds the configured width.
 - `SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, `SET`, `RETURNING`, and similar
   clause layouts must be covered by fixtures before behavior changes.
 - New layout rules must be idempotent.
+- If a dialect feature cannot be formatted confidently, pass it through rather
+  than producing a partially formatted query.
+
+## Review Corpus
+
+- `review-cases/{dialect}/` contains broader human-review samples. Use it to
+  reproduce style gaps before changing formatter behavior.
+- `review-output/` is generated local output and must stay untracked.
+- Regenerate review output with:
+
+```sh
+uv run python scripts/render_review.py review-cases/mysql review-output/mysql
+uv run python scripts/render_review.py review-cases/postgres review-output/postgres
+uv run python scripts/render_review.py review-cases/oracle review-output/oracle
+```
+
+- Promote only stable, reviewed behavior into `tests/fixtures/`.
+- Use `scripts/accept_case.py` when accepting a review sample as a regression
+  fixture.
 
 ## Dialect Policy
 
@@ -55,6 +76,8 @@ Run before committing:
 uv run python -m unittest discover -s tests
 uv build --no-sources
 ```
+
+For formatter layout changes, also check generated review output is idempotent.
 
 Fixture naming:
 

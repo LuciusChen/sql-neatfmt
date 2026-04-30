@@ -1,0 +1,1 @@
+select op.id, op.code, c.customer_name, s.site_name, g.goods_name from order_payoil op inner join customer c on c.customer_id = op.customer_id left join oil_site s on s.site_id = op.site_id left join goods g on g.goods_id = op.goods_id where op.deleted = 0 and op.created_at >= date '2026-04-01' order by op.id desc;

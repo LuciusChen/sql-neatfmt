@@ -1,0 +1,1 @@
+with recursive org_tree as (select id, customer_name, 1 as depth from customers where id = 1 union all select c.id, c.customer_name, ot.depth + 1 as depth from customers c join org_tree ot on c.id = ot.id + 1 where ot.depth < 3) select id, customer_name, depth from org_tree order by depth, id;

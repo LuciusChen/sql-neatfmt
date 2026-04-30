@@ -1,0 +1,1 @@
+select customer_id, parent_customer_id, customer_name, level as tree_level, sys_connect_by_path(customer_name, '/') as path_name from customer start with parent_customer_id is null connect by prior customer_id = parent_customer_id order siblings by customer_name;

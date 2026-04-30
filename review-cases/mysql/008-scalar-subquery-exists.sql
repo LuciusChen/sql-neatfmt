@@ -1,0 +1,1 @@
+select fop.payoil_code, (select count(1) from ffp_cust_oil_stora_his as h where h.plan_code = fop.payoil_code and h.update_oil_num > 0) as history_count from ffp_order_payoil fop where exists (select 1 from ffp_order_consign as foc where foc.order_id = fop.payoil_id and foc.deleted = 0);

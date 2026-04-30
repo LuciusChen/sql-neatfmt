@@ -1,0 +1,1 @@
+select c.customer_id, c.customer_name, (select count(*) from order_payoil op where op.customer_id = c.customer_id and op.deleted = 0) order_count, (select max(op.created_at) from order_payoil op where op.customer_id = c.customer_id and op.deleted = 0) last_order_time from customer c where c.status = 'ACTIVE' order by last_order_time desc nulls last;
