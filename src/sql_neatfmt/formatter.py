@@ -27,11 +27,19 @@ class FormatOptions:
     short_query_max_width: int = 120
 
 
+@dataclass(frozen=True)
+class LineComment:
+    text: str
+    leading: str
+    inline_anchor: str | None = None
+    following_anchor: str | None = None
+
+
 TEMPLATE_RE = re.compile(
     r"</?(select|insert|update|delete|include|if|where|foreach|choose|when|otherwise|trim|set)\b|[#][$]?\{",
     re.IGNORECASE,
 )
-COMMENT_RE = re.compile(r"(--|/\*)")
+BLOCK_COMMENT_RE = re.compile(r"/\*")
 ORACLE_UNSUPPORTED_RE = re.compile(r"\b(connect\s+by|start\s+with)\b", re.IGNORECASE)
 SQL_KEYWORDS = {
     "add",
@@ -194,7 +202,8 @@ SQL_FUNCTIONS = {
 
 def format_sql(sql: str, options: FormatOptions | None = None) -> str:
     options = options or FormatOptions()
-    if unsafe_input(sql, options):
+    stripped_sql, line_comments = strip_line_comments(sql)
+    if unsafe_input(stripped_sql, options):
         return sql
 
     trailing_newline = sql.endswith("\n")
@@ -203,7 +212,7 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
         was_disabled = sqlglot_logger.disabled
         sqlglot_logger.disabled = True
         try:
-            statements = sqlglot.parse(sql, read=options.dialect)
+            statements = sqlglot.parse(stripped_sql, read=options.dialect)
         finally:
             sqlglot_logger.disabled = was_disabled
     except Exception:
@@ -221,18 +230,152 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
             return sql
         formatted.append(case_keywords(result.rstrip(), options.keyword_case))
 
-    output = ";\n".join(formatted)
-    if sql.rstrip().endswith(";"):
+    output = ";\n\n".join(formatted)
+    if stripped_sql.rstrip().endswith(";"):
         output += ";"
+    if line_comments:
+        output = restore_line_comments(output, line_comments, options)
     if trailing_newline:
         output += "\n"
     return output
 
 
 def unsafe_input(sql: str, options: FormatOptions) -> bool:
-    if TEMPLATE_RE.search(sql) or COMMENT_RE.search(sql):
+    if TEMPLATE_RE.search(sql) or BLOCK_COMMENT_RE.search(sql):
         return True
     return options.dialect == "oracle" and bool(ORACLE_UNSUPPORTED_RE.search(sql))
+
+
+def strip_line_comments(sql: str) -> tuple[str, list[LineComment]]:
+    lines = sql.splitlines(keepends=True)
+    clean_lines: list[str] = []
+    comments: list[tuple[int, str, str, str | None]] = []
+    quote: str | None = None
+
+    for index, line in enumerate(lines):
+        body, newline = split_newline(line)
+        comment_index, quote = find_line_comment(body, quote)
+        if comment_index is None:
+            clean_lines.append(line)
+            continue
+
+        code = body[:comment_index].rstrip()
+        comment = body[comment_index:].rstrip()
+        leading = body[: len(body) - len(body.lstrip())]
+        inline_anchor = code.strip() or None
+        comments.append((index, comment, leading, inline_anchor))
+        clean_lines.append((code if inline_anchor else "") + newline)
+
+    line_comments: list[LineComment] = []
+    for index, comment, leading, inline_anchor in comments:
+        following_anchor = None
+        if inline_anchor is None:
+            following_anchor = next_clean_anchor(clean_lines, index + 1)
+        line_comments.append(
+            LineComment(
+                text=comment,
+                leading=leading,
+                inline_anchor=inline_anchor,
+                following_anchor=following_anchor,
+            )
+        )
+
+    return "".join(clean_lines), line_comments
+
+
+def split_newline(line: str) -> tuple[str, str]:
+    if line.endswith("\r\n"):
+        return line[:-2], "\r\n"
+    if line.endswith("\n"):
+        return line[:-1], "\n"
+    if line.endswith("\r"):
+        return line[:-1], "\r"
+    return line, ""
+
+
+def find_line_comment(line: str, quote: str | None) -> tuple[int | None, str | None]:
+    i = 0
+    while i < len(line):
+        char = line[i]
+        nxt = line[i + 1] if i + 1 < len(line) else ""
+
+        if quote is not None:
+            if char == "\\" and nxt:
+                i += 2
+                continue
+            if char == quote:
+                if nxt == quote:
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+
+        if char in {"'", '"', "`"}:
+            quote = char
+            i += 1
+            continue
+        if char == "-" and nxt == "-":
+            return i, quote
+        i += 1
+
+    return None, quote
+
+
+def next_clean_anchor(lines: list[str], start: int) -> str | None:
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def restore_line_comments(
+    formatted_sql: str, comments: list[LineComment], options: FormatOptions
+) -> str:
+    lines = formatted_sql.splitlines()
+    for comment in comments:
+        if comment.inline_anchor:
+            index = find_formatted_anchor(lines, comment.inline_anchor)
+            if index is None:
+                lines.append(comment_line(comment, options))
+            else:
+                lines[index] = lines[index].rstrip() + " " + comment.text
+            continue
+
+        index = find_formatted_anchor(lines, comment.following_anchor)
+        line = comment_line(comment, options)
+        if index is None:
+            lines.append(line)
+        else:
+            lines.insert(index, line)
+    return "\n".join(lines)
+
+
+def find_formatted_anchor(lines: list[str], anchor: str | None) -> int | None:
+    if not anchor:
+        return None
+
+    needle = canonical_comment_anchor(anchor)
+    for index, line in enumerate(lines):
+        haystack = canonical_comment_anchor(line)
+        if needle and needle in haystack:
+            return index
+    return None
+
+
+def canonical_comment_anchor(sql: str) -> str:
+    comment_index, _ = find_line_comment(sql, None)
+    if comment_index is not None:
+        sql = sql[:comment_index]
+    sql = sql.casefold().replace("!=", "<>")
+    return "".join(char for char in sql if not char.isspace())
+
+
+def comment_line(comment: LineComment, options: FormatOptions) -> str:
+    if re.match(r"--\s*(and|or)\b", comment.text, flags=re.IGNORECASE):
+        return " " * options.condition_indent + comment.text
+    return comment.leading + comment.text
 
 
 def format_statement(statement: exp.Expression, options: FormatOptions) -> str | None:

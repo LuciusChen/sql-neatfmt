@@ -1,3 +1,1 @@
-select a.id -- keep comment
-from table_a a where a.id = 1;
-
+SELECT a.id FROM table_a a WHERE a.id = 1; -- keep comment

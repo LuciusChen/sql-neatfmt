@@ -19,6 +19,33 @@ GROUP BY a.id
 ORDER BY a.id DESC;
 ```
 
+## Installation
+
+Install the published package from PyPI:
+
+```sh
+uv tool install sql-neatfmt
+```
+
+Other common options:
+
+```sh
+pipx install sql-neatfmt
+python -m pip install sql-neatfmt
+```
+
+Install from a Git checkout when you want the latest unreleased `main`:
+
+```sh
+uv tool install git+https://github.com/LuciusChen/sql-neatfmt
+```
+
+Install from a local checkout while developing:
+
+```sh
+uv tool install --from ~/repos/sql-neatfmt sql-neatfmt
+```
+
 ## Usage
 
 ```sh
@@ -58,25 +85,7 @@ uv run python scripts/accept_case.py oracle pivot_subquery \
   review-output/oracle/015-pivot.sql
 ```
 
-## Installation
-
-Install from a local checkout:
-
-```sh
-uv tool install --from ~/repos/sql-neatfmt sql-neatfmt
-```
-
-Install from a Git checkout:
-
-```sh
-uv tool install git+https://github.com/LuciusChen/sql-neatfmt
-```
-
-After publishing to PyPI:
-
-```sh
-uv tool install sql-neatfmt
-```
+## Release
 
 Build release artifacts:
 
@@ -102,5 +111,6 @@ Supported initial dialect names follow SQLGlot: `mysql`, `postgres`, `oracle`,
 
 ## Scope
 
-This is intentionally conservative. Parse failures, comments, and templated SQL
-are returned unchanged rather than risk corrupting the query.
+This is intentionally conservative. Parse failures, block comments, and
+templated SQL are returned unchanged rather than risk corrupting the query.
+Line comments using `--` are supported for common editor formatting cases.

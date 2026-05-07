@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - 2026-05-07
+
+- Support common `--` line comments without falling back to unchanged SQL.
+- Preserve blank lines between multiple formatted SQL statements.
+- Document PyPI as the primary installation path.
+
 ## 0.1.2 - 2026-04-30
 
 - Add review-corpus tooling for human approval of formatter style changes.
