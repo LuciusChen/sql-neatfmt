@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-05-08
+
+- Add conservative `DROP TABLE` formatting so mixed SQL buffers do not fall
+  back to unchanged output.
+- Keep standalone line comments attached to long reformatted statements.
+- Emit `AS` for literal projection aliases, such as constants in
+  `INSERT ... SELECT` mappings.
+
 ## 0.1.3 - 2026-05-07
 
 - Support common `--` line comments without falling back to unchanged SQL.

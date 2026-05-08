@@ -356,12 +356,41 @@ def find_formatted_anchor(lines: list[str], anchor: str | None) -> int | None:
     if not anchor:
         return None
 
-    needle = canonical_comment_anchor(anchor)
-    for index, line in enumerate(lines):
-        haystack = canonical_comment_anchor(line)
-        if needle and needle in haystack:
-            return index
+    for needle in comment_anchor_candidates(anchor):
+        for index, line in enumerate(lines):
+            haystack = canonical_comment_anchor(line)
+            if needle in haystack:
+                return index
     return None
+
+
+def comment_anchor_candidates(anchor: str) -> list[str]:
+    candidates = [canonical_comment_anchor(anchor)]
+    statement_matchers = [
+        r"^\s*insert\s+into\s+([\w.`\"]+)",
+        r"^\s*create\s+(?:temporary\s+)?table\s+([\w.`\"]+)",
+        r"^\s*alter\s+table\s+([\w.`\"]+)",
+        r"^\s*drop\s+table\s+([\w.`\"]+)",
+        r"^\s*update\s+([\w.`\"]+)",
+        r"^\s*delete\s+from\s+([\w.`\"]+)",
+    ]
+    for pattern in statement_matchers:
+        match = re.match(pattern, anchor, flags=re.IGNORECASE)
+        if match:
+            keyword = re.match(r"^\s*(\w+)", anchor, flags=re.IGNORECASE)
+            if keyword:
+                candidates.append(canonical_comment_anchor(f"{keyword.group(1)} {match.group(1)}"))
+
+    canonical = candidates[0]
+    for size in (120, 80, 60, 40):
+        if len(canonical) > size:
+            candidates.append(canonical[:size])
+
+    unique: list[str] = []
+    for candidate in candidates:
+        if len(candidate) >= 6 and candidate not in unique:
+            unique.append(candidate)
+    return unique
 
 
 def canonical_comment_anchor(sql: str) -> str:
@@ -393,6 +422,8 @@ def format_statement(statement: exp.Expression, options: FormatOptions) -> str |
         return format_create(statement, options)
     if isinstance(statement, exp.Alter):
         return format_alter(statement, options)
+    if isinstance(statement, exp.Drop):
+        return format_drop(statement, options)
     if isinstance(statement, exp.Merge):
         return format_merge(statement, options)
     if isinstance(statement, exp.Command):
@@ -444,7 +475,11 @@ def format_projection(expression: exp.Expression, options: FormatOptions) -> str
             lines = scalar_subquery.splitlines()
             lines[-1] += f" as {sql_expr(expression.args['alias'], options)}"
             return "\n".join(lines)
-        return f"{sql_expr(expression.this, options)} {sql_expr(expression.args['alias'], options)}"
+        return (
+            f"{sql_expr(expression.this, options)}"
+            f"{projection_alias_separator(expression)}"
+            f"{sql_expr(expression.args['alias'], options)}"
+        )
     scalar_subquery = format_scalar_subquery(expression, options)
     if scalar_subquery is not None:
         return scalar_subquery
@@ -685,6 +720,12 @@ def format_projection_list(expressions: list[exp.Expression], options: FormatOpt
     return formatted
 
 
+def projection_alias_separator(expression: exp.Alias) -> str:
+    if isinstance(expression.this, exp.Literal):
+        return " as "
+    return " "
+
+
 def split_projection_alias(
     expression: exp.Expression, options: FormatOptions
 ) -> tuple[str, str] | None:
@@ -696,7 +737,11 @@ def split_projection_alias(
     expression_sql = sql_expr(expression.this, options)
     if "\n" in expression_sql:
         return None
-    return expression_sql, sql_expr(expression.args["alias"], options)
+    alias_sql = projection_alias_separator(expression).strip()
+    if alias_sql:
+        alias_sql += " "
+    alias_sql += sql_expr(expression.args["alias"], options)
+    return expression_sql, alias_sql
 
 
 def format_with(with_expr: exp.With | None, options: FormatOptions) -> list[str]:
@@ -1301,6 +1346,10 @@ def format_create(create: exp.Create, options: FormatOptions) -> str:
     if formatted:
         return formatted
     return sql
+
+
+def format_drop(drop: exp.Drop, options: FormatOptions) -> str:
+    return sql_expr(drop, options)
 
 
 def format_create_table_sql(sql: str, options: FormatOptions) -> str | None:
