@@ -35,6 +35,14 @@ class LineComment:
     following_anchor: str | None = None
 
 
+@dataclass(frozen=True)
+class ColumnDefinitionLayout:
+    name: str
+    kind: str
+    constraints: list[str]
+    has_not_null: bool
+
+
 TEMPLATE_RE = re.compile(
     r"</?(select|insert|update|delete|include|if|where|foreach|choose|when|otherwise|trim|set)\b|[#][$]?\{",
     re.IGNORECASE,
@@ -56,6 +64,7 @@ SQL_KEYWORDS = {
     "case",
     "cast",
     "char",
+    "charset",
     "check",
     "clob",
     "column",
@@ -79,6 +88,7 @@ SQL_KEYWORDS = {
     "duplicate",
     "else",
     "end",
+    "engine",
     "exists",
     "false",
     "fetch",
@@ -1341,6 +1351,10 @@ def format_conflict_target(conflict: exp.OnConflict, options: FormatOptions) -> 
 
 
 def format_create(create: exp.Create, options: FormatOptions) -> str:
+    formatted_table = format_create_table(create, options)
+    if formatted_table:
+        return formatted_table
+
     sql = sql_expr(create, options)
     formatted = format_create_table_sql(sql, options)
     if formatted:
@@ -1350,6 +1364,233 @@ def format_create(create: exp.Create, options: FormatOptions) -> str:
 
 def format_drop(drop: exp.Drop, options: FormatOptions) -> str:
     return sql_expr(drop, options)
+
+
+def format_create_table(create: exp.Create, options: FormatOptions) -> str | None:
+    if str(create.args.get("kind") or "").lower() != "table":
+        return None
+
+    schema = create.this
+    if not isinstance(schema, exp.Schema):
+        return None
+
+    definitions = list(schema.expressions)
+    if len(definitions) <= 1:
+        return None
+
+    sql = sql_expr(create, options)
+    if len(sql) <= options.short_query_max_width:
+        return None
+
+    start = sql.find("(")
+    if start == -1:
+        return None
+
+    head = sql[:start].rstrip()
+    lines = [head, "("]
+    lines.extend(format_create_table_definitions(definitions, options))
+
+    properties = format_create_table_properties(create.args.get("properties"), options)
+    if properties:
+        lines.append(") " + properties[0])
+        lines.extend("  " + property_sql for property_sql in properties[1:])
+    else:
+        lines.append(")")
+    return "\n".join(lines)
+
+
+def format_create_table_definitions(
+    definitions: list[exp.Expression], options: FormatOptions
+) -> list[str]:
+    column_layouts = [
+        split_column_definition(definition, options)
+        for definition in definitions
+        if isinstance(definition, exp.ColumnDef)
+    ]
+    name_width = max((len(column.name) for column in column_layouts), default=0) + 1
+
+    not_null_kind_widths = [
+        len(column.kind) for column in column_layouts if column.has_not_null and column.kind
+    ]
+    if not_null_kind_widths:
+        not_null_start = max(not_null_kind_widths) + 1
+        constraint_start = not_null_start + len("not null") + 1
+    else:
+        constraint_start = max((len(column.kind) for column in column_layouts), default=0) + 1
+        not_null_start = constraint_start
+
+    lines: list[str] = []
+    for index, definition in enumerate(definitions):
+        suffix = "," if index < len(definitions) - 1 else ""
+        if isinstance(definition, exp.ColumnDef):
+            column = split_column_definition(definition, options)
+            line = format_create_table_column(
+                column,
+                name_width,
+                not_null_start,
+                constraint_start,
+            )
+        else:
+            line = " " * 4 + format_table_constraint(definition, options)
+        lines.append(line + suffix)
+    return lines
+
+
+def split_column_definition(
+    column: exp.ColumnDef, options: FormatOptions
+) -> ColumnDefinitionLayout:
+    constraints: list[str] = []
+    has_not_null = False
+    for constraint in column.args.get("constraints") or []:
+        kind = constraint.args.get("kind")
+        if isinstance(kind, exp.NotNullColumnConstraint):
+            has_not_null = True
+            continue
+        constraints.append(format_column_constraint(constraint, options))
+
+    kind = column.args.get("kind")
+    return ColumnDefinitionLayout(
+        name=sql_expr(column.this, options),
+        kind=sql_expr(kind, options) if kind else "",
+        constraints=constraints,
+        has_not_null=has_not_null,
+    )
+
+
+def format_column_constraint(constraint: exp.ColumnConstraint, options: FormatOptions) -> str:
+    sql = sql_expr(constraint, options)
+    if isinstance(constraint.args.get("kind"), exp.DefaultColumnConstraint):
+        return re.sub(r"\bcurrent_timestamp\(\)", "current_timestamp", sql, flags=re.IGNORECASE)
+    return sql
+
+
+def format_create_table_column(
+    column: ColumnDefinitionLayout,
+    name_width: int,
+    not_null_start: int,
+    constraint_start: int,
+) -> str:
+    line = " " * 4 + pad_to(column.name, name_width)
+    constraints = " ".join(column.constraints)
+    if column.has_not_null:
+        line += pad_to(column.kind, not_null_start) + "not null"
+        if constraints:
+            line += " " + constraints
+        return line
+
+    if constraints:
+        start = not_null_start if starts_at_not_null_slot(constraints) else constraint_start
+        line += pad_to(column.kind, start) + constraints
+        return line
+
+    return line + column.kind
+
+
+def starts_at_not_null_slot(constraints: str) -> bool:
+    return bool(re.match(r"(primary\s+key|unique)\b", constraints, flags=re.IGNORECASE))
+
+
+def pad_to(text: str, width: int) -> str:
+    return text + " " * max(width - len(text), 1)
+
+
+def format_table_constraint(definition: exp.Expression, options: FormatOptions) -> str:
+    if options.dialect in {"mysql", "mariadb"}:
+        mysql_constraint = format_mysql_table_constraint(definition, options)
+        if mysql_constraint is not None:
+            return mysql_constraint
+    return sql_expr(definition, options)
+
+
+def format_mysql_table_constraint(
+    definition: exp.Expression, options: FormatOptions
+) -> str | None:
+    if isinstance(definition, exp.UniqueColumnConstraint):
+        schema = definition.this
+        if not isinstance(schema, exp.Schema):
+            return None
+        name = sql_expr(schema.this, options)
+        columns = ", ".join(sql_expr(expression, options) for expression in schema.expressions)
+        suffix = format_index_constraint_options(definition, options)
+        return f"unique key {name} ({columns}){suffix}"
+
+    if isinstance(definition, exp.IndexColumnConstraint):
+        name = sql_expr(definition.this, options)
+        columns = ", ".join(
+            format_index_constraint_expression(expression, options)
+            for expression in definition.expressions
+        )
+        suffix = format_index_constraint_options(definition, options)
+        index_kind = sql_expr(definition.args.get("kind"), options)
+        prefix = f"{index_kind} key" if index_kind else "key"
+        return f"{prefix} {name} ({columns}){suffix}"
+
+    return None
+
+
+def format_index_constraint_expression(
+    expression: exp.Expression, options: FormatOptions
+) -> str:
+    if isinstance(expression, exp.Ordered):
+        return sql_expr(expression.this, options)
+    return sql_expr(expression, options)
+
+
+def format_index_constraint_options(
+    definition: exp.Expression, options: FormatOptions
+) -> str:
+    options_sql = [
+        sql_expr(option, options)
+        for option in definition.args.get("options") or []
+        if sql_expr(option, options)
+    ]
+    if not options_sql:
+        return ""
+    return " " + " ".join(options_sql)
+
+
+def format_create_table_properties(
+    properties: exp.Properties | None, options: FormatOptions
+) -> list[str]:
+    if not isinstance(properties, exp.Properties):
+        return []
+
+    lines: list[str] = []
+    for property_expr in properties.expressions:
+        property_sql = format_create_table_property(property_expr, options)
+        if not property_sql:
+            continue
+        if lines and should_join_table_property(lines[-1], property_sql):
+            lines[-1] += " " + property_sql
+        else:
+            lines.append(property_sql)
+    return lines
+
+
+def should_join_table_property(previous: str, current: str) -> bool:
+    return (
+        current.startswith("comment ")
+        and ("charset" in previous or "character set" in previous)
+    )
+
+
+def format_create_table_property(
+    property_expr: exp.Expression, options: FormatOptions
+) -> str:
+    value = property_expr.this
+    if isinstance(property_expr, exp.EngineProperty) and value is not None:
+        return "engine = " + sql_expr(value, options)
+    if isinstance(property_expr, exp.AutoIncrementProperty) and value is not None:
+        return "auto_increment = " + sql_expr(value, options)
+    if isinstance(property_expr, exp.CharacterSetProperty) and value is not None:
+        prefix = "default charset" if property_expr.args.get("default") else "charset"
+        return prefix + " = " + sql_expr(value, options)
+    if isinstance(property_expr, exp.SchemaCommentProperty) and value is not None:
+        return "comment = " + sql_expr(value, options)
+
+    sql = sql_expr(property_expr, options)
+    sql = re.sub(r"\bdefault\s+character\s+set\b", "default charset", sql, flags=re.IGNORECASE)
+    return re.sub(r"\s*=\s*", " = ", sql)
 
 
 def format_create_table_sql(sql: str, options: FormatOptions) -> str | None:
@@ -1378,7 +1619,7 @@ def format_create_table_sql(sql: str, options: FormatOptions) -> str | None:
     if len(definitions) <= 1:
         return None
 
-    lines = [head + " ("]
+    lines = [head, "("]
     for index, definition in enumerate(definitions):
         suffix = "," if index < len(definitions) - 1 else ""
         lines.append(" " * 4 + definition + suffix)

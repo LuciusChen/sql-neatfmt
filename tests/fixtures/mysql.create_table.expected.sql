@@ -1,5 +1,6 @@
-CREATE TABLE order_audit (
-    id BIGINT PRIMARY KEY,
+CREATE TABLE order_audit
+(
+    id          BIGINT      PRIMARY KEY,
     payoil_code VARCHAR(64) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP()
+    created_at  DATETIME             DEFAULT CURRENT_TIMESTAMP
 );

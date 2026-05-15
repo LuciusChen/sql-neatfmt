@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 - 2026-05-15
+
+- Improve long `CREATE TABLE` formatting with aligned column names, data types,
+  `NOT NULL`, and default clauses.
+- Format MySQL table options across lines with spaced assignments.
+- Preserve MySQL `UNIQUE KEY` and `KEY ... USING BTREE` style for table
+  constraints.
+
 ## 0.1.4 - 2026-05-08
 
 - Add conservative `DROP TABLE` formatting so mixed SQL buffers do not fall
