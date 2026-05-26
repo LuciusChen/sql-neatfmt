@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 - 2026-05-26
+
+- Expand long derived-table `UNION` and `UNION ALL` queries instead of keeping
+  them on a single `FROM (...)` line.
+- Recognize MySQL `LOCATE()` as a function for keyword casing.
+
 ## 0.1.5 - 2026-05-15
 
 - Improve long `CREATE TABLE` formatting with aligned column names, data types,

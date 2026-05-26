@@ -186,6 +186,7 @@ SQL_FUNCTIONS = {
     "lag",
     "lead",
     "length",
+    "locate",
     "lower",
     "max",
     "min",
@@ -845,10 +846,10 @@ def format_query_expression(expression: exp.Expression, options: FormatOptions) 
 def format_derived_subquery_relation(
     expression: exp.Expression, options: FormatOptions
 ) -> str | None:
-    if not isinstance(expression, exp.Subquery) or not isinstance(expression.this, exp.Select):
+    if not isinstance(expression, exp.Subquery):
         return None
 
-    body_lines = format_inline_select(expression.this, options)
+    body_lines = format_derived_query_body(expression.this, options)
     if not body_lines:
         return None
 
@@ -859,6 +860,16 @@ def format_derived_subquery_relation(
     alias_sql = " " + sql_expr(alias.this, options) if alias else ""
     lines[-1] += ")" + pivot_sql + alias_sql
     return "\n".join(lines)
+
+
+def format_derived_query_body(
+    expression: exp.Expression, options: FormatOptions
+) -> list[str] | None:
+    if isinstance(expression, exp.Select):
+        return format_inline_select(expression, options)
+    if isinstance(expression, exp.Union):
+        return format_union(expression, options).splitlines()
+    return None
 
 
 def wrap_derived_relation_if_long(
