@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.8 - 2026-05-27
+
+- Keep `NOT LIKE` predicates in natural `column NOT LIKE pattern` order.
+- Add coverage for MySQL `UPDATE ... JOIN` statements with nested derived
+  subqueries.
+- Require formatted fixture outputs to remain parseable, catching malformed SQL
+  that idempotence checks can miss.
+
 ## 0.1.7 - 2026-05-27
 
 - Preserve the full `JOIN` keyword when formatting `INNER JOIN`, `CROSS JOIN`,

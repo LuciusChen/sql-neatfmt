@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import logging
 import pathlib
 import tempfile
 import unittest
+
+import sqlglot
 
 from sql_neatfmt import FormatOptions, format_sql
 from sql_neatfmt.cli import main
@@ -37,6 +40,18 @@ class FixtureTests(unittest.TestCase):
             expected = expected_path.read_text(encoding="utf-8")
             with self.subTest(case=case):
                 self.assertEqual(expected, format_sql(expected, FormatOptions(dialect=dialect)))
+
+    def test_expected_fixtures_are_parseable(self) -> None:
+        expected_files = sorted(FIXTURES.glob("*.expected.sql"))
+        self.assertTrue(expected_files)
+        for expected_path in expected_files:
+            case = expected_path.name.removesuffix(".expected.sql")
+            dialect = case.split(".", 1)[0]
+            expected = expected_path.read_text(encoding="utf-8")
+            with self.subTest(case=case):
+                statements = parse_sql_quietly(expected, dialect)
+                self.assertTrue(statements)
+                self.assertTrue(all(statement is not None for statement in statements))
 
     def test_keyword_case_lower(self) -> None:
         sql = "select a, b from t where x is not null and y = false;"
@@ -89,6 +104,16 @@ class CLITests(unittest.TestCase):
         self.assertIn("--- ", diff)
         self.assertIn("+++ ", diff)
         self.assertIn("+SELECT a,", diff)
+
+
+def parse_sql_quietly(sql: str, dialect: str) -> list[sqlglot.Expression | None]:
+    sqlglot_logger = logging.getLogger("sqlglot")
+    was_disabled = sqlglot_logger.disabled
+    sqlglot_logger.disabled = True
+    try:
+        return sqlglot.parse(sql, read=dialect)
+    finally:
+        sqlglot_logger.disabled = was_disabled
 
 
 if __name__ == "__main__":

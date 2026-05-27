@@ -89,6 +89,7 @@ SQL_KEYWORDS = {
     "else",
     "end",
     "engine",
+    "escape",
     "exists",
     "false",
     "fetch",
@@ -116,6 +117,7 @@ SQL_KEYWORDS = {
     "key",
     "lateral",
     "left",
+    "like",
     "limit",
     "matched",
     "merge",
@@ -566,9 +568,26 @@ def special_sql(expression: exp.Expression, options: FormatOptions) -> str | Non
         inner = expression.this
         if isinstance(inner, exp.Is) and isinstance(inner.expression, exp.Null):
             return f"{sql_expr(inner.this, options)} is not null"
+        not_like = format_not_like(inner, options)
+        if not_like is not None:
+            return not_like
     if isinstance(expression, exp.Is) and isinstance(expression.expression, exp.Null):
         return f"{sql_expr(expression.this, options)} is null"
     return None
+
+
+def format_not_like(expression: exp.Expression, options: FormatOptions) -> str | None:
+    escape: exp.Expression | None = None
+    if isinstance(expression, exp.Escape):
+        escape = expression.expression
+        expression = expression.this
+    if not isinstance(expression, exp.Like):
+        return None
+
+    sql = f"{sql_expr(expression.this, options)} not like {sql_expr(expression.expression, options)}"
+    if escape is not None:
+        sql += " escape " + sql_expr(escape, options)
+    return sql
 
 
 def clean_generated_sql(sql: str) -> str:
