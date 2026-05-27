@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 - 2026-05-27
+
+- Preserve the full `JOIN` keyword when formatting `INNER JOIN`, `CROSS JOIN`,
+  and outer join variants.
+- Repair malformed join SQL emitted by older versions, such as `INNER table ON`
+  and `LEFT OUTER table ON`, before formatting.
+
 ## 0.1.6 - 2026-05-26
 
 - Expand long derived-table `UNION` and `UNION ALL` queries instead of keeping
