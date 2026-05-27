@@ -219,15 +219,15 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
 
     trailing_newline = sql.endswith("\n")
     try:
-        sqlglot_logger = logging.getLogger("sqlglot")
-        was_disabled = sqlglot_logger.disabled
-        sqlglot_logger.disabled = True
-        try:
-            statements = sqlglot.parse(stripped_sql, read=options.dialect)
-        finally:
-            sqlglot_logger.disabled = was_disabled
+        statements = parse_sql(stripped_sql, options)
     except Exception:
-        return sql
+        repaired_sql = repair_missing_join_keywords(stripped_sql)
+        if repaired_sql == stripped_sql:
+            return sql
+        try:
+            statements = parse_sql(repaired_sql, options)
+        except Exception:
+            return sql
 
     if not statements:
         return sql
@@ -249,6 +249,111 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
     if trailing_newline:
         output += "\n"
     return output
+
+
+def parse_sql(sql: str, options: FormatOptions) -> list[exp.Expression | None]:
+    sqlglot_logger = logging.getLogger("sqlglot")
+    was_disabled = sqlglot_logger.disabled
+    sqlglot_logger.disabled = True
+    try:
+        return sqlglot.parse(sql, read=options.dialect)
+    finally:
+        sqlglot_logger.disabled = was_disabled
+
+
+def repair_missing_join_keywords(sql: str) -> str:
+    # Older sql-neatfmt versions emitted "INNER table ON ...", "CROSS table",
+    # and "LEFT OUTER table ON ..." by dropping JOIN. Repair those exact
+    # malformed join keywords before falling back unchanged.
+    out: list[str] = []
+    i = 0
+    quote: str | None = None
+
+    while i < len(sql):
+        char = sql[i]
+        nxt = sql[i + 1] if i + 1 < len(sql) else ""
+
+        if quote is not None:
+            out.append(char)
+            if char == "\\" and nxt:
+                out.append(nxt)
+                i += 2
+                continue
+            if char == quote:
+                if nxt == quote:
+                    out.append(nxt)
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+
+        repair = missing_join_keyword_repair(sql, i)
+        if repair is not None:
+            text, i = repair
+            out.append(text)
+            continue
+
+        if char in {"'", '"', "`"}:
+            out.append(char)
+            quote = char
+            i += 1
+            continue
+
+        out.append(char)
+        i += 1
+
+    return "".join(out)
+
+
+def missing_join_keyword_repair(sql: str, index: int) -> tuple[str, int] | None:
+    for keyword in ("inner", "cross"):
+        if not starts_word(sql, index, keyword):
+            continue
+        after_keyword = index + len(keyword)
+        after_space = consume_whitespace(sql, after_keyword)
+        if next_word(sql, after_space) == "join":
+            return None
+        return sql[index:after_space] + "JOIN ", after_space
+
+    for side in ("left", "right", "full"):
+        if not starts_word(sql, index, side):
+            continue
+        after_side = index + len(side)
+        after_side_space = consume_whitespace(sql, after_side)
+        if next_word(sql, after_side_space) != "outer":
+            return None
+        after_outer = after_side_space + len("outer")
+        after_outer_space = consume_whitespace(sql, after_outer)
+        if next_word(sql, after_outer_space) == "join":
+            return None
+        return sql[index:after_outer_space] + "JOIN ", after_outer_space
+
+    return None
+
+
+def starts_word(sql: str, index: int, word: str) -> bool:
+    end = index + len(word)
+    return sql[index:end].lower() == word and is_word_boundary(sql, index, end)
+
+
+def consume_whitespace(sql: str, index: int) -> int:
+    while index < len(sql) and sql[index].isspace():
+        index += 1
+    return index
+
+
+def next_word(sql: str, index: int) -> str:
+    end = index
+    while end < len(sql) and (sql[end].isalnum() or sql[end] == "_"):
+        end += 1
+    return sql[index:end].lower()
+
+
+def is_word_boundary(sql: str, start: int, end: int) -> bool:
+    before = sql[start - 1] if start > 0 else ""
+    after = sql[end] if end < len(sql) else ""
+    return not (before.isalnum() or before == "_") and not (after.isalnum() or after == "_")
 
 
 def unsafe_input(sql: str, options: FormatOptions) -> bool:
@@ -892,7 +997,7 @@ def format_join(
     prefix = " " * indent_spaces
     side = (join.args.get("side") or "").lower()
     kind = (join.args.get("kind") or "join").lower()
-    join_keyword = " ".join(part for part in (side, kind) if part)
+    join_keyword = format_join_keyword(side, kind)
     join_prefix = f"{prefix}{join_keyword} "
     compact_relation = format_relation(join.this, options)
     join_sql = join_prefix + compact_relation
@@ -926,6 +1031,16 @@ def format_join(
         for op, part in parts[1:]
     )
     return lines
+
+
+def format_join_keyword(side: str, kind: str) -> str:
+    if kind in {"inner", "cross"} and not side:
+        return f"{kind} join"
+    if side and kind == "join":
+        return f"{side} join"
+    if side and kind:
+        return f"{side} {kind} join"
+    return kind
 
 
 def format_predicate_clause(
