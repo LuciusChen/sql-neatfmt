@@ -1,0 +1,21 @@
+SELECT wlppo.id,
+       wlppo.order_code orderCode,
+       wg.goods_name    goodsName,
+       IFNULL(
+           CASE
+               WHEN wlppo.income_state = 0 THEN 0
+               ELSE
+                   CASE
+                       WHEN wlppo.income_state = 1 AND wlppo.plan_state <> 4 THEN
+                           ROUND(wlppo.num * (t.amount - wlppo.plan_amount * wlppo.deposit_prop) / wlppo.plan_amount, 3)
+                           - COALESCE(c.oilNum, 0)
+                       ELSE s.saleNum - COALESCE(c.oilNum, 0)
+                   END
+           END,
+           0
+       ) canOilNum
+FROM ws_lock_price_plan_order wlppo
+         LEFT JOIN ws_goods wg ON wg.goods_id = wlppo.ws_goods_id
+         LEFT JOIN payments t ON t.order_code = wlppo.order_code
+         LEFT JOIN consign c ON c.order_code = wlppo.order_code
+         LEFT JOIN sales s ON s.order_code = wlppo.order_code;

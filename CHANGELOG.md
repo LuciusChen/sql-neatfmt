@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 - 2026-05-29
+
+- Expand long `CASE` projection expressions, including nested `CASE` blocks
+  wrapped in MySQL `IFNULL(...)`.
+- Keep multiline projections out of alias-alignment width calculations so one
+  long computed column does not force excessive spacing across the SELECT list.
+
 ## 0.1.8 - 2026-05-27
 
 - Keep `NOT LIKE` predicates in natural `column NOT LIKE pattern` order.

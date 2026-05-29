@@ -555,6 +555,10 @@ def sql_expr(expression: exp.Expression | None, options: FormatOptions) -> str:
     special = special_sql(expression, options)
     if special is not None:
         return special
+    return generated_sql_expr(expression, options)
+
+
+def generated_sql_expr(expression: exp.Expression, options: FormatOptions) -> str:
     sql = expression.sql(dialect=options.dialect, pretty=False, normalize_functions="lower")
     return clean_generated_sql(case_keywords(sql, "lower"))
 
@@ -611,14 +615,14 @@ def format_projection(expression: exp.Expression, options: FormatOptions) -> str
             lines[-1] += f" as {sql_expr(expression.args['alias'], options)}"
             return "\n".join(lines)
         return (
-            f"{sql_expr(expression.this, options)}"
+            f"{format_projection_expression(expression.this, options)}"
             f"{projection_alias_separator(expression)}"
             f"{sql_expr(expression.args['alias'], options)}"
         )
     scalar_subquery = format_scalar_subquery(expression, options)
     if scalar_subquery is not None:
         return scalar_subquery
-    return sql_expr(expression, options)
+    return format_projection_expression(expression, options)
 
 
 def format_scalar_subquery(expression: exp.Expression, options: FormatOptions) -> str | None:
@@ -626,6 +630,153 @@ def format_scalar_subquery(expression: exp.Expression, options: FormatOptions) -
         return None
 
     return format_parenthesized_select(expression.this, options)
+
+
+def format_projection_expression(expression: exp.Expression, options: FormatOptions) -> str:
+    compact = sql_expr(expression, options)
+    multiline = format_multiline_expression(expression, options)
+    if multiline is not None:
+        return multiline
+    return compact
+
+
+def format_multiline_expression(
+    expression: exp.Expression, options: FormatOptions
+) -> str | None:
+    if isinstance(expression, exp.Case):
+        compact = sql_expr(expression, options)
+        if len(compact) > options.short_query_max_width or has_nested_case(expression):
+            return format_case_block(expression, options)
+        return None
+
+    function = format_multiline_function(expression, options)
+    if function is not None:
+        return function
+
+    return None
+
+
+def has_nested_case(expression: exp.Case) -> bool:
+    return any(isinstance(node, exp.Case) and node is not expression for node in expression.walk())
+
+
+def format_multiline_function(
+    expression: exp.Expression, options: FormatOptions
+) -> str | None:
+    function = multiline_function_arguments(expression, options)
+    if function is None:
+        return None
+
+    name, arguments = function
+    compact = sql_expr(expression, options)
+    formatted_arguments: list[str] = []
+    has_multiline_argument = False
+    for argument in arguments:
+        argument_sql = format_multiline_expression(argument, options) or sql_expr(argument, options)
+        has_multiline_argument = has_multiline_argument or "\n" in argument_sql
+        formatted_arguments.append(argument_sql)
+
+    if not has_multiline_argument and len(compact) <= options.short_query_max_width:
+        return None
+
+    return format_function_block(name, formatted_arguments)
+
+
+def multiline_function_arguments(
+    expression: exp.Expression, options: FormatOptions
+) -> tuple[str, list[exp.Expression]] | None:
+    if isinstance(expression, exp.Coalesce):
+        expressions = list(expression.expressions)
+        arguments = [argument for argument in [expression.this, *expressions] if argument is not None]
+        if not arguments:
+            return None
+        if options.dialect in {"mysql", "mariadb"} and expression.this is not None and len(expressions) == 1:
+            return "ifnull", arguments
+        return "coalesce", arguments
+    return None
+
+
+def format_function_block(name: str, arguments: list[str]) -> str:
+    lines = [f"{name}("]
+    for index, argument in enumerate(arguments):
+        argument_lines = indent(argument, 4).splitlines()
+        if index < len(arguments) - 1:
+            argument_lines[-1] += ","
+        lines.extend(argument_lines)
+    lines.append(")")
+    return "\n".join(lines)
+
+
+def format_case_block(expression: exp.Case, options: FormatOptions) -> str:
+    head = "case"
+    case_target = expression.this
+    if case_target is not None:
+        head += " " + sql_expr(case_target, options)
+
+    lines = [head]
+    for item in expression.args.get("ifs") or []:
+        if not isinstance(item, exp.If):
+            continue
+        condition = sql_expr(item.this, options)
+        value = format_case_result(item.args.get("true"), options)
+        inline = f"    when {condition} then {value}"
+        if "\n" in value or len(inline) > options.short_query_max_width:
+            lines.append(f"    when {condition} then")
+            lines.extend(indent(value, 8).splitlines())
+        else:
+            lines.append(inline)
+
+    default = expression.args.get("default")
+    if default is not None:
+        default_sql = format_case_result(default, options)
+        inline = f"    else {default_sql}"
+        if "\n" in default_sql or len(inline) > options.short_query_max_width:
+            lines.append("    else")
+            lines.extend(indent(default_sql, 8).splitlines())
+        else:
+            lines.append(inline)
+
+    lines.append("end")
+    return "\n".join(lines)
+
+
+def format_case_result(expression: exp.Expression | None, options: FormatOptions) -> str:
+    if expression is None:
+        return ""
+    if isinstance(expression, exp.Case):
+        return format_case_block(expression, options)
+    multiline = format_multiline_expression(expression, options)
+    if multiline is not None:
+        return multiline
+    binary = format_long_binary_expression(expression, options)
+    if binary is not None:
+        return binary
+    return sql_expr(expression, options)
+
+
+def format_long_binary_expression(
+    expression: exp.Expression, options: FormatOptions
+) -> str | None:
+    operators: dict[type[exp.Expression], str] = {
+        exp.Add: "+",
+        exp.Sub: "-",
+    }
+    operator = operators.get(type(expression))
+    if operator is None:
+        return None
+
+    compact = sql_expr(expression, options)
+    if len(compact) <= options.short_query_max_width - 20:
+        return None
+
+    return (
+        f"{format_binary_operand(expression.left, options)}\n"
+        f"{operator} {format_binary_operand(expression.right, options)}"
+    )
+
+
+def format_binary_operand(expression: exp.Expression, options: FormatOptions) -> str:
+    return generated_sql_expr(expression, options)
 
 
 def format_parenthesized_select(select: exp.Select, options: FormatOptions) -> str | None:
@@ -869,7 +1020,7 @@ def split_projection_alias(
     if format_scalar_subquery(expression.this, options) is not None:
         return None
 
-    expression_sql = sql_expr(expression.this, options)
+    expression_sql = format_projection_expression(expression.this, options)
     if "\n" in expression_sql:
         return None
     alias_sql = projection_alias_separator(expression).strip()
@@ -913,7 +1064,10 @@ def maybe_short_select(select: exp.Select, options: FormatOptions) -> str | None
     relation = from_expr.this if isinstance(from_expr, exp.From) else from_expr
     from_sql = "from " + format_relation(relation, options)
     select_keyword = "select distinct " if select.args.get("distinct") else "select "
-    query = select_keyword + format_projection(select.expressions[0], options) + " " + from_sql
+    projection = format_projection(select.expressions[0], options)
+    if "\n" in projection:
+        return None
+    query = select_keyword + projection + " " + from_sql
     if where:
         query += " where " + sql_expr(where.this, options)
     if len(query) <= options.short_query_max_width:
