@@ -243,7 +243,7 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
             return sql
         formatted.append(case_keywords(result.rstrip(), options.keyword_case))
 
-    output = ";\n\n".join(formatted)
+    output = join_formatted_statements(formatted, sql)
     if stripped_sql.rstrip().endswith(";"):
         output += ";"
     if line_comments:
@@ -251,6 +251,65 @@ def format_sql(sql: str, options: FormatOptions | None = None) -> str:
     if trailing_newline:
         output += "\n"
     return output
+
+
+def join_formatted_statements(formatted: list[str], sql: str) -> str:
+    if not formatted:
+        return ""
+
+    separators = inter_statement_separators(sql)
+    output = formatted[0]
+    for index, statement in enumerate(formatted[1:]):
+        separator = separators[index] if index < len(separators) else "\n"
+        output += ";" + separator + statement
+    return output
+
+
+def inter_statement_separators(sql: str) -> list[str]:
+    separators: list[str] = []
+    i = 0
+    quote: str | None = None
+
+    while i < len(sql):
+        char = sql[i]
+        nxt = sql[i + 1] if i + 1 < len(sql) else ""
+
+        if quote is not None:
+            if char == "\\" and nxt:
+                i += 2
+                continue
+            if char == quote:
+                if nxt == quote:
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+
+        if char in {"'", '"', "`"}:
+            quote = char
+            i += 1
+            continue
+
+        if char == ";":
+            j = i + 1
+            while j < len(sql) and sql[j].isspace():
+                j += 1
+            if j < len(sql):
+                separators.append(format_statement_separator(sql[i + 1 : j]))
+            i = j
+            continue
+
+        i += 1
+
+    return separators
+
+
+def format_statement_separator(whitespace: str) -> str:
+    newline_count = whitespace.count("\n")
+    if newline_count <= 1:
+        return "\n"
+    return "\n" * newline_count
 
 
 def parse_sql(sql: str, options: FormatOptions) -> list[exp.Expression | None]:

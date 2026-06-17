@@ -89,6 +89,6 @@ FROM (SELECT cc.customer_id                                              custome
         AND ccc.id IS NOT NULL
         AND ccc.state = 0) ref
 WHERE 1 = 1
-  AND LOCATE('重庆市巫山县源林水陆运输有限公司', customer_name) > 0
+  AND LOCATE('Acme Logistics Co.', customer_name) > 0
 GROUP BY customer_name, subject_id
 ORDER BY CAST(customer_name AS CHAR CHARACTER SET GBK), subject_id ASC;

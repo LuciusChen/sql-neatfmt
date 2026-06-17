@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import logging
 import pathlib
+import re
 import tempfile
 import unittest
 
@@ -14,6 +15,8 @@ from sql_neatfmt.cli import main
 
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+PROJECT_ROOT = pathlib.Path(__file__).parents[1]
+PRIVATE_SAMPLE_RE = re.compile(r"[\u4e00-\u9fff]|WSSC\d+|`zj`|\bzj_test\b")
 
 
 class FixtureTests(unittest.TestCase):
@@ -52,6 +55,16 @@ class FixtureTests(unittest.TestCase):
                 statements = parse_sql_quietly(expected, dialect)
                 self.assertTrue(statements)
                 self.assertTrue(all(statement is not None for statement in statements))
+
+    def test_sample_sql_is_anonymized(self) -> None:
+        sample_files = [
+            *sorted(FIXTURES.glob("*.sql")),
+            *sorted((PROJECT_ROOT / "review-cases").glob("*/*.sql")),
+        ]
+        self.assertTrue(sample_files)
+        for path in sample_files:
+            with self.subTest(path=path.relative_to(PROJECT_ROOT)):
+                self.assertIsNone(PRIVATE_SAMPLE_RE.search(path.read_text(encoding="utf-8")))
 
     def test_keyword_case_lower(self) -> None:
         sql = "select a, b from t where x is not null and y = false;"

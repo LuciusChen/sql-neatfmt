@@ -1,0 +1,3 @@
+SELECT a FROM t;
+
+SELECT b FROM t;

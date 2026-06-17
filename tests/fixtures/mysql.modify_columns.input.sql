@@ -1,1 +1,1 @@
-alter table zj_test.ffp_order_payoil modify column invite_customer_type_id smallint(6) null comment '邀请客户类型：1老客，2新客', modify column invite_customer_id varchar(100) null comment '邀请客户名称，用户自由填写';
+alter table demo_test.ffp_order_payoil modify column invite_customer_type_id smallint(6) null comment 'customer type: 1 existing, 2 new', modify column invite_customer_id varchar(100) null comment 'customer name entered by user';

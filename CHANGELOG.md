@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10 - 2026-06-17
+
+- Stop automatically inserting blank lines between formatted SQL statements;
+  preserve only blank lines that were present in the input.
+- Anonymize SQL fixture and review-case sample data.
+- Add regression coverage to keep private sample data out of committed SQL
+  samples.
+
 ## 0.1.9 - 2026-05-29
 
 - Expand long `CASE` projection expressions, including nested `CASE` blocks
